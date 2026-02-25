@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node --no-warnings --watch index.js"
+    "start": "bun --watch index.js"
   },
   "keywords": [],
   "author": "",
