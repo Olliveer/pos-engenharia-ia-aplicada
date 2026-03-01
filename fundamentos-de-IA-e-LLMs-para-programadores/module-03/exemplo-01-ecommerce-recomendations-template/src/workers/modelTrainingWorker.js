@@ -13,9 +13,9 @@ const WEIGHTS = {
 
 const normalize = (valeu, min, max) => (valeu - min) / (max - min) || 1;
 
-function makeContext(catalog, users) {
+function makeContext(products, users) {
   const ages = users.map((user) => user.age);
-  const prices = catalog.map((p) => p.price);
+  const prices = products.map((p) => p.price);
 
   const minAge = Math.min(...ages);
   const maxAge = Math.max(...ages);
@@ -23,9 +23,9 @@ function makeContext(catalog, users) {
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
 
-  const colors = [...new Set(catalog.map((p) => p.color))];
+  const colors = [...new Set(products.map((p) => p.color))];
 
-  const categories = [...new Set(catalog.map((p) => p.category))];
+  const categories = [...new Set(products.map((p) => p.category))];
 
   const colorsIndex = Object.fromEntries(colors.map((c, i) => [c, i]));
   const categoriesIndex = Object.fromEntries(categories.map((c, i) => [c, i]));
@@ -42,7 +42,7 @@ function makeContext(catalog, users) {
   });
 
   const productAvgAgeNorm = Object.fromEntries(
-    catalog.map((product) => {
+    products.map((product) => {
       const avg = ageCounts[product.name]
         ? ageSums[product.name] / ageCounts[product.name]
         : midAge;
@@ -52,7 +52,7 @@ function makeContext(catalog, users) {
   );
 
   return {
-    catalog,
+    products,
     users,
     colorsIndex,
     categoriesIndex,
@@ -97,6 +97,42 @@ function encodeProduct(product, ctx) {
   return tf.concat1d([price, age, category, color]);
 }
 
+function encodeUser(user, ctx) {
+  if (user.purchases.length) {
+    return tf
+      .stack(user.purchases.map((product) => encodeProduct(product, ctx)))
+      .min(0)
+      .reshape([1, ctx.dimentions]);
+  }
+}
+
+function createTrainingData(ctx) {
+  const inputs = [];
+  const labels = [];
+  ctx.users.forEach((user) => {
+    const userVector = encodeUser(user, ctx).dataSync();
+    ctx.products.forEach((product) => {
+      const productVector = encodeProduct(product, ctx).dataSync();
+
+      const label = user.purchases.some((p) => p.name === product.name) ? 1 : 0;
+
+      // Aqui você pode criar um dataset de treinamento usando userVector, productVector e label
+      // Por exemplo, você pode concatenar userVector e productVector para criar uma entrada combinada
+      // E usar label como a saída esperada para treinar um modelo de classificação binária
+      // Exemplo de como criar uma entrada combinada:
+      inputs.push([...userVector, ...productVector]);
+      labels.push(label);
+    });
+  });
+
+  return {
+    xs: tf.tensor2d(inputs),
+    ys: tf.tensor2d(labels, [labels.length, 1]),
+    // A dimensão de entrada para o modelo seria a soma das dimensões do vetor do usuário e do vetor do produto
+    inputDimention: ctx.dimentions * 2,
+  };
+}
+
 async function trainModel({ users }) {
   console.log("Training model with users:", users);
 
@@ -105,18 +141,22 @@ async function trainModel({ users }) {
     progress: { progress: 50 },
   });
 
-  const catalog = await (await fetch("/data/products.json")).json();
-  const context = makeContext(catalog, users);
+  const productsData = await (await fetch("/data/products.json")).json();
+  const context = makeContext(productsData, users);
 
   _globalCtx = context;
 
-  context.productVectors = catalog.map((product) => {
+  context.productVectors = productsData.map((product) => {
     return {
       name: product.name,
       meta: { ...product },
       vector: encodeProduct(product, context).dataSync(),
     };
   });
+
+  _globalCtx = context;
+
+  const trainingData = createTrainingData(context);
 
   debugger;
 
