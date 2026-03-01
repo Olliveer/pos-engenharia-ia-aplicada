@@ -105,6 +105,15 @@ function encodeUser(user, ctx) {
       .min(0)
       .reshape([1, ctx.dimentions]);
   }
+
+  return tf
+    .concat1d([
+      tf.zeros([1]), // price is ignored
+      tf.tensor1d([normalize(user.age, ctx.minAge, ctx.maxAge) * WEIGHTS.age]), // age
+      tf.zeros([ctx.numCategories]), // no category preference
+      tf.zeros([ctx.numColors]), // no color preference
+    ])
+    .reshape([1, ctx.dimentions]);
 }
 
 function createTrainingData(ctx) {
@@ -240,18 +249,52 @@ async function trainModel({ users }) {
   });
   postMessage({ type: workerEvents.trainingComplete });
 }
-function recommend(user, ctx) {
+function recommend({ user }) {
+  if (!_model) {
+    console.error("Model or context not initialized");
+    return;
+  }
+  const ctx = _globalCtx;
   console.log("will recommend for user:", user);
-  // postMessage({
-  //     type: workerEvents.recommend,
-  //     user,
-  //     recommendations: []
-  // });
+  const userTensor = encodeUser(user, ctx).dataSync();
+  // Para cada produto, criamos uma entrada combinada do vetor do usuário e do vetor do produto
+  // e usamos o modelo para prever a probabilidade de compra
+  const inputs = ctx.productVectors.map(({ vector }) => {
+    return [...userTensor, ...vector];
+  });
+
+  // Agora temos um array de entradas combinadas para cada produto, e podemos usar o modelo para prever a probabilidade de compra para cada um
+  // A dimensão de entrada para o modelo é a soma das dimensões do vetor do usuário e do vetor do produto, que é ctx.dimentions * 2
+  // Criamos um tensor 2D onde cada linha é uma entrada combinada para um produto
+  const inputTensor = tf.tensor2d(inputs);
+  // Usamos o modelo para prever a probabilidade de compra para cada produto
+  // O resultado é um tensor 2D onde cada linha contém a probabilidade de compra para o produto correspondente
+  const predictions = _model.predict(inputTensor);
+  // Convertendo as previsões para um array de JavaScript para facilitar a manipulação
+  const scores = predictions.dataSync();
+
+  const recommendations = ctx.productVectors
+    .map((product, index) => ({
+      ...product.meta,
+      name: product.name,
+      score: scores[index], // A pontuação é a probabilidade prevista de compra para o produto
+    }))
+    .sort((a, b) => b.score - a.score);
+  // .slice(0, 5); // Retorna as top 5 recomendações
+
+  // Enviando as recomendações de volta para o thread principal
+  // O objeto enviado contém o tipo de evento, o usuário para quem as recomendações foram feitas,
+  // e a lista de recomendações ordenada por pontuação
+  postMessage({
+    type: workerEvents.recommend,
+    user,
+    recommendations,
+  });
 }
 
 const handlers = {
   [workerEvents.trainModel]: trainModel,
-  [workerEvents.recommend]: (d) => recommend(d.user, _globalCtx),
+  [workerEvents.recommend]: recommend,
 };
 
 self.onmessage = (e) => {
