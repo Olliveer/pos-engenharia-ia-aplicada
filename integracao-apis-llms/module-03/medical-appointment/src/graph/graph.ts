@@ -40,9 +40,9 @@ export function buildAppointmentGraph(
     stateSchema: AppointmentStateAnnotation,
   })
     .addNode("identifyIntent", createIdentifyIntentNode(llmClient))
-    .addNode("schedule", createSchedulerNode())
-    .addNode("cancel", createCancellerNode())
-    .addNode("message", createMessageGeneratorNode())
+    .addNode("schedule", createSchedulerNode(appointmentService))
+    .addNode("cancel", createCancellerNode(appointmentService))
+    .addNode("message", createMessageGeneratorNode(llmClient))
 
     // Flow
     .addEdge(START, "identifyIntent")
