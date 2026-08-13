@@ -1,13 +1,21 @@
-export const getUserPrompt = ({ intent, fileName, fileContent }: { intent: string, fileName: string, fileContent: string }) =>
-    `
+export const getUserPrompt = ({
+  intent,
+  fileName,
+  fileContent,
+}: {
+  intent: string;
+  fileName: string;
+  fileContent: string;
+}) =>
+  `
     Intent: ${intent}
-    File name: ${fileName ?? 'N/A'}
+    File name: ${fileName ?? "N/A"}
     File content:
     ${fileContent}
-`
+`;
 
 export const getSystemPrompt = () =>
-    `
+  `
 You are a data processing agent. You have access to these tools:
 - csv_to_json: converts a CSV string to JSON
 - filesystem tools (read_file, write_file, etc.): read and write files on disk

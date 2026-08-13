@@ -24,7 +24,7 @@ export const config: ModelConfig = {
   apiKey: process.env.OPENROUTER_API_KEY!,
   httpReferer: "",
   xTitle: "IA Devs - Transforming Services into Tools",
-  models: ["poolside/laguna-s-2.1:free"],
+  models: ["nvidia/nemotron-3.5-lightning:free"],
   provider: {
     sort: {
       by: "throughput", // Route to model with highest throughput (fastest response)
